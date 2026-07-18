@@ -1,24 +1,94 @@
 const c = @import("c");
 const std = @import("std");
 
+const cursor_mode = enum {
+    CURSOR_MOVE,
+    CURSOR_PASSTHROUGH,
+    CURSOR_RESIZE,
+};
+
 const Server = struct {
     allocator: ?*c.wlr_allocator = null,
     backend: ?*c.wlr_backend = null,
-    output_layout: ?*c.wlr_output_layout = null,
     renderer: ?*c.wlr_renderer = null,
+    scene: ?*c.wlr_scene = null,
+    scene_layout: ?*c.wlr_scene_output_layout = null,
     wl_display: ?*c.wl_display,
 
+    new_xdg_popup: c.wl_listener = undefined,
+    new_xdg_toplevel: c.wl_listener = undefined,
+    toplevels: c.wl_list = undefined,
+    xdg_shell: ?*c.wlr_xdg_shell = null,
+
+    cursor: ?*c.wlr_cursor = null,
+    cursor_aixs: c.wl_listener = undefined,
+    cursor_button: c.wl_listener = undefined,
+    cursor_frame: c.wl_listener = undefined,
+    cursor_mgr: ?*c.wlr_xcursor_manager = null,
+    cursor_motion: c.wl_listener = undefined,
+    cursor_motion_absolute: c.wl_listener = undefined,
+
+    cursor_mode: cursor_mode = .CURSOR_MOVE,
+    grab_geobox: c.wlr_box = undefined,
+    grab_x: f64 = 0.0,
+    grab_y: f64 = 0.0,
+    grabbed_toplevel: ?*Toplevel = null,
+    keyboards: c.wl_list = undefined,
+    new_input: c.wl_listener = undefined,
+    pointer_focus_change: c.wl_listener = undefined,
+    request_cursor: c.wl_listener = undefined,
+    request_set_selection: c.wl_listener = undefined,
+    resize_edges: u32 = 0,
+    seat: ?*c.wlr_seat = null,
+
+    new_output: c.wl_listener = undefined,
+    output_layout: ?*c.wlr_output_layout = null,
     outputs: c.wl_list = undefined,
-    new_output: *c.wl_listener = undefined,
 };
 
 const Output = struct {
+    destroy: c.wl_listener,
+    events: struct {
+        frame: c.wl_signal,
+        request_state: c.wl_listener,
+        destroy: c.wl_listener,
+    },
+    frame: c.wl_listener,
     link: c.wl_list,
+    request_state: c.wl_listener,
     server: ?*Server,
     wlr_output: ?*c.wlr_output,
-    frame: *c.wl_listener,
-    request_state: ?*c.wl_listener,
-    destroy: ?*c.wl_listener,
+};
+
+const Toplevel = struct {
+    commmit: c.wl_listener,
+    destroy: c.wl_listener,
+    link: c.wl_list,
+    map: c.wl_listener,
+    request_fullscreen: c.wl_listener,
+    request_maximize: c.wl_listener,
+    request_move: c.wl_listener,
+    request_resize: c.wl_listener,
+    scene_tree: ?*c.wlr_scene_tree,
+    server: ?*Server,
+    unmap: c.wl_listener,
+    xdg_toplevel: ?*c.wlr_xdg_toplevel,
+};
+
+const Popup = struct {
+    commit: c.wl_listener,
+    destroy: c.wl_listener,
+    xdg_popup: ?*c.wlr_xdg_popup,
+};
+
+const Keyboard = struct {
+    destroy: c.wl_listener,
+    key: c.wl_listener,
+    key_repeat: c.wl_listener,
+    link: c.wl_list,
+    modifiers: c.wl_listener,
+    server: ?*Server,
+    wlr_keyboard: ?*c.wlr_keyboard,
 };
 
 pub fn init() !Server {
