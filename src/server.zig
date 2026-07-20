@@ -130,6 +130,9 @@ pub fn init() !Server {
     c.wlr_cursor_attach_output_layout(server.cursor, server.output_layout);
     server.cursor_mgr = c.wlr_xcursor_manager_create(null, 24);
     server.cursor_motion.notify = server_cursor_motion;
+    c.wl_signal_add(&server.cursor.?.events.motion, &server.cursor_motion);
+    server.cursor_motion_absolute.notify = server_cursor_motion_absolute;
+    c.wl_signal_add(&server.cursor.?.events.motion_absolute, &server.cursor_motion_absolute);
     return server;
 }
 
@@ -258,16 +261,104 @@ fn server_new_xdg_popup(_: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void
     c.wl_signal_add(&xdg_popup.?.events.destroy, &popup.destroy);
 }
 
-fn process_cursor_motion(server: *Server, _: u32) void {
-    if (server.cursor_mode == .CURSOR_MOVE) {
-        c.wlr_scene_node_set_position(
-            &server.grabbed_toplevel.?.scene_tree.?.node,
-            @intFromFloat(server.cursor.?.x - server.grab_x),
-            @intFromFloat(server.cursor.?.y - server.grab_y),
-        );
-        return;
-    } else if (server.cursor_mode == .CURSOR_RESIZE) {
-        return;
+fn desktop_toplevel_at(
+    server: ?*Server,
+    lx: f64,
+    ly: f64,
+    surface: *?*c.wl_surface,
+    sx: *f64,
+    sy: *f64,
+) ?*Toplevel {
+    const node = c.wlr_scene_node_at(&server.?.scene.?.tree.node, lx, ly, sx, sy);
+    if (node == null or node.*.type != c.WLR_SCENE_NODE_BUFFER) {
+        return null;
+    }
+    const scene_buffer = c.wlr_scene_buffer_from_node(node);
+    const scene_surface = c.wlr_scene_surface_try_from_buffer(scene_buffer);
+    if (scene_surface == null) {
+        return null;
+    }
+    surface.*.? = @ptrCast(scene_surface.*.surface);
+    var tree = node.*.parent;
+    while (tree != null and tree.*.node.data == null) {
+        tree = tree.*.node.parent;
+    }
+    return @ptrCast(@alignCast(tree.?.*.node.data));
+}
+
+fn process_cursor_motion(server: *Server, time: u32) void {
+    switch (server.cursor_mode) {
+        .CURSOR_MOVE => {
+            c.wlr_scene_node_set_position(
+                &server.grabbed_toplevel.?.scene_tree.?.node,
+                @intFromFloat(server.cursor.?.x - server.grab_x),
+                @intFromFloat(server.cursor.?.y - server.grab_y),
+            );
+        },
+        .CURSOR_RESIZE => {
+            const border_x: c_int = @intFromFloat(server.cursor.?.x - server.grab_x);
+            const border_y: c_int = @intFromFloat(server.cursor.?.y - server.grab_y);
+            var new_left = server.grab_geobox.x;
+            var new_right = server.grab_geobox.x + server.grab_geobox.width;
+            var new_top = server.grab_geobox.y;
+            var new_bottom = server.grab_geobox.y + server.grab_geobox.height;
+            if (server.resize_edges & c.WLR_EDGE_TOP == 1) {
+                new_top = border_y;
+                if (new_bottom <= new_top) {
+                    new_top = new_bottom - 1;
+                }
+            } else if (server.resize_edges & c.WLR_EDGE_BOTTOM == 1) {
+                new_bottom = border_y;
+                if (new_bottom <= new_top) {
+                    new_bottom = new_top + 1;
+                }
+            } else if (server.resize_edges & c.WLR_EDGE_LEFT == 1) {
+                new_left = border_x;
+                if (new_right <= new_left) {
+                    new_left = new_right - 1;
+                }
+            } else if (server.resize_edges & c.WLR_EDGE_RIGHT == 1) {
+                new_right = border_x;
+                if (new_right <= new_left) {
+                    new_right = new_left + 1;
+                }
+            }
+            const toplevel = server.grabbed_toplevel.?;
+            const geo_box = &toplevel.xdg_toplevel.?.base.*.geometry;
+            c.wlr_scene_node_set_position(
+                &toplevel.scene_tree.?.node,
+                new_left - geo_box.*.x,
+                new_top - geo_box.*.y,
+            );
+            _ = c.wlr_xdg_toplevel_set_size(
+                toplevel.xdg_toplevel,
+                new_right - new_left,
+                new_bottom - new_top,
+            );
+        },
+        .CURSOR_PASSTHROUGH => {
+            var sx: f64 = 0.0;
+            var sy: f64 = 0.0;
+            var surface: ?*c.wl_surface = undefined;
+            const toplevel: ?*Toplevel = desktop_toplevel_at(
+                server,
+                server.cursor.?.x,
+                server.cursor.?.y,
+                &surface,
+                &sx,
+                &sy,
+            );
+            if (toplevel == null) {
+                c.wlr_cursor_set_xcursor(server.cursor, server.cursor_mgr, "default");
+            }
+            const seat = server.seat;
+            if (surface != null) {
+                c.wlr_seat_pointer_notify_enter(seat, @ptrCast(@alignCast(surface.?)), sx, sy);
+                c.wlr_seat_pointer_notify_motion(seat, time, sx, sy);
+            } else {
+                c.wlr_seat_pointer_clear_focus(seat);
+            }
+        },
     }
 }
 
@@ -275,5 +366,12 @@ fn server_cursor_motion(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.
     const server: *Server = @fieldParentPtr("cursor_motion", listener.?);
     const event: *c.wlr_pointer_motion_event = @ptrCast(@alignCast(data));
     c.wlr_cursor_move(server.cursor, &event.pointer.*.base, event.delta_x, event.delta_y);
+    process_cursor_motion(server, event.time_msec);
+}
+
+fn server_cursor_motion_absolute(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    const server: *Server = @fieldParentPtr("cursor_motion_absolute", listener.?);
+    const event: *c.wlr_pointer_motion_absolute_event = @ptrCast(@alignCast(data));
+    c.wlr_cursor_warp_absolute(server.cursor, &event.pointer.*.base, event.x, event.y);
     process_cursor_motion(server, event.time_msec);
 }
