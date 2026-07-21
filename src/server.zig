@@ -133,6 +133,14 @@ pub fn init() !Server {
     c.wl_signal_add(&server.cursor.?.events.motion, &server.cursor_motion);
     server.cursor_motion_absolute.notify = server_cursor_motion_absolute;
     c.wl_signal_add(&server.cursor.?.events.motion_absolute, &server.cursor_motion_absolute);
+    server.cursor_button.notify = server_cursor_button;
+    c.wl_signal_add(&server.cursor.?.events.button, &server.cursor_button);
+    server.cursor_aixs.notify = server_cursor_axis;
+    c.wl_signal_add(&server.cursor.?.events.axis, &server.cursor_aixs);
+    server.cursor_frame.notify = server_cursor_frame;
+    c.wl_signal_add(&server.cursor.?.events.frame, &server.cursor_frame);
+    c.wl_list_init(&server.keyboards);
+    server.new_input.notify = server_new_input;
     return server;
 }
 
@@ -374,4 +382,142 @@ fn server_cursor_motion_absolute(listener: ?*c.wl_listener, data: ?*anyopaque) c
     const event: *c.wlr_pointer_motion_absolute_event = @ptrCast(@alignCast(data));
     c.wlr_cursor_warp_absolute(server.cursor, &event.pointer.*.base, event.x, event.y);
     process_cursor_motion(server, event.time_msec);
+}
+
+fn server_cursor_button(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    const server: *Server = @fieldParentPtr("cursor_button", listener.?);
+    const event: *c.wlr_pointer_button_event = @ptrCast(@alignCast(data));
+    _ = c.wlr_seat_pointer_notify_button(server.seat, event.time_msec, event.button, event.state);
+    if (event.state == c.WL_POINTER_BUTTON_STATE_RELEASED) {
+        server.cursor_mode = .CURSOR_PASSTHROUGH;
+        server.grabbed_toplevel = null;
+    } else {
+        var sx: f64 = 0.0;
+        var sy: f64 = 0.0;
+        var surface: ?*c.wl_surface = undefined;
+        const toplevel: ?*Toplevel = desktop_toplevel_at(
+            server,
+            server.cursor.?.x,
+            server.cursor.?.y,
+            &surface,
+            &sx,
+            &sy,
+        );
+        focus_toplevel(toplevel);
+    }
+}
+
+fn server_cursor_axis(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    const server: *Server = @fieldParentPtr("cursor_aixs", listener.?);
+    const event: *c.wlr_pointer_axis_event = @ptrCast(@alignCast(data));
+    c.wlr_seat_pointer_notify_axis(
+        server.seat,
+        event.time_msec,
+        event.orientation,
+        event.delta,
+        event.delta_discrete,
+        event.source,
+        event.relative_direction,
+    );
+}
+
+fn server_cursor_frame(listener: ?*c.wl_listener, _: ?*anyopaque) callconv(.c) void {
+    const server: *Server = @fieldParentPtr("cursor_frame", listener.?);
+    c.wlr_seat_pointer_notify_frame(server.seat);
+}
+
+fn keyboard_handle_modifiers(listener: ?*c.wl_listener, _: ?*anyopaque) callconv(.c) void {
+    const keyboard: *Keyboard = @fieldParentPtr("modifiers", listener.?);
+    c.wlr_seat_set_keyboard(keyboard.server.?.seat, keyboard.wlr_keyboard);
+    c.wlr_seat_keyboard_notify_modifiers(keyboard.server.?.seat, &keyboard.wlr_keyboard.?.modifiers);
+}
+
+fn handled_keybinding(server: ?*Server, sym: c.xkb_keysym_t) bool {
+    switch (sym) {
+        c.XKB_KEY_Escape => {
+            c.wl_display_terminate(server.?.wl_display);
+        },
+        c.XKB_KEY_F1 => {
+            if (!(c.wl_list_length(&server.?.toplevels) < 2)) {
+                const toplevel: *Toplevel = @fieldParentPtr(
+                    "link",
+                    @as(*c.wl_list, @ptrCast(server.?.toplevels.prev)),
+                );
+                focus_toplevel(toplevel);
+            }
+        },
+        else => {
+            return false;
+        },
+    }
+    return true;
+}
+
+fn keyboard_handle_key(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    const keyboard: *Keyboard = @fieldParentPtr("key", listener.?);
+    const server = keyboard.server;
+    const event: *c.wlr_keyboard_key_event = @ptrCast(@alignCast(data));
+    const keycode = event.keycode + 8;
+    var syms: *c.xkb_keysym_t = undefined;
+    const nsyms = c.xkb_state_key_get_syms(
+        keyboard.wlr_keyboard.?.xkb_state,
+        keycode,
+        @ptrCast(&syms),
+    );
+    var handled = false;
+    const modifiers = c.wlr_keyboard_get_modifiers(keyboard.wlr_keyboard);
+    if (modifiers & c.WLR_MODIFIER_ALT != 0 and event.state == c.WL_KEYBOARD_KEY_STATE_PRESSED) {
+        const syms_slice = @as(
+            [*]c.xkb_keysym_t,
+            @ptrCast(syms),
+        )[0..@intCast(nsyms)];
+        for (syms_slice) |sym| {
+            handled = handled_keybinding(server, sym);
+        }
+    }
+    if (!handled) {
+        const seat = server.?.seat;
+        _ = c.wlr_seat_set_keyboard(seat, keyboard.wlr_keyboard);
+        c.wlr_seat_keyboard_notify_key(
+            seat,
+            event.time_msec,
+            event.keycode,
+            event.state,
+        );
+    }
+}
+
+fn server_new_keyboard(server: *Server, device: *c.wlr_input_device) void {
+    const wlr_keyboard = c.wlr_keyboard_from_input_device(device);
+    var keyboard = std.mem.Allocator.create(
+        std.heap.page_allocator,
+        Keyboard,
+    ) catch unreachable;
+    keyboard.server = server;
+    keyboard.wlr_keyboard = wlr_keyboard;
+    const context = c.xkb_context_new(c.XKB_CONTEXT_NO_FLAGS);
+    defer c.xkb_context_unref(context);
+    const keymap = c.xkb_keymap_new_from_names(context, null, c.XKB_KEYMAP_COMPILE_NO_FLAGS);
+    defer c.xkb_keymap_unref(keymap);
+    _ = c.wlr_keyboard_set_keymap(wlr_keyboard, keymap);
+    c.wlr_keyboard_set_repeat_info(wlr_keyboard, 25, 600);
+    keyboard.modifiers.notify = keyboard_handle_modifiers;
+    c.wl_signal_add(&wlr_keyboard.*.events.modifiers, &keyboard.modifiers);
+    keyboard.key.notify = keyboard_handle_key;
+}
+
+fn server_new_input(listener: ?*c.wl_listener, data: ?*anyopaque) callconv(.c) void {
+    const server: *Server = @fieldParentPtr("new_input", listener.?);
+    const device: *c.wlr_input_device = @ptrCast(@alignCast(data));
+    switch (device.type) {
+        c.WLR_INPUT_DEVICE_KEYBOARD => {
+            server_new_keyboard(server, device);
+        },
+        c.WLR_INPUT_DEVICE_POINTER => {
+            c.wlr_cursor_attach_input_device(server.cursor, device);
+        },
+        else => {
+            //
+        },
+    }
 }
