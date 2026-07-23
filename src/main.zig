@@ -7,7 +7,7 @@ pub fn main(init: std.process.Init) !void {
         c.WLR_DEBUG
     else
         c.WLR_INFO, null);
-    _ = try server.init();
+    _ = try server.init(init);
     _ = init.arena.allocator();
     const io = init.io;
     var stdout_buffer: [1024]u8 = undefined;
