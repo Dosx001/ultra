@@ -11,20 +11,20 @@ const Server = struct {
     allocator: ?*c.wlr_allocator = null,
     backend: ?*c.wlr_backend = null,
     renderer: ?*c.wlr_renderer = null,
-    scene: ?*c.wlr_scene = null,
+    scene: *c.wlr_scene = undefined,
     scene_layout: ?*c.wlr_scene_output_layout = null,
     wl_display: ?*c.wl_display,
 
     new_xdg_popup: c.wl_listener = undefined,
     new_xdg_toplevel: c.wl_listener = undefined,
     toplevels: c.wl_list = undefined,
-    xdg_shell: ?*c.wlr_xdg_shell = null,
+    xdg_shell: *c.wlr_xdg_shell = undefined,
 
-    cursor: ?*c.wlr_cursor = null,
+    cursor: *c.wlr_cursor = undefined,
     cursor_aixs: c.wl_listener = undefined,
     cursor_button: c.wl_listener = undefined,
     cursor_frame: c.wl_listener = undefined,
-    cursor_mgr: ?*c.wlr_xcursor_manager = null,
+    cursor_mgr: *c.wlr_xcursor_manager = undefined,
     cursor_motion: c.wl_listener = undefined,
     cursor_motion_absolute: c.wl_listener = undefined,
 
@@ -39,10 +39,10 @@ const Server = struct {
     request_cursor: c.wl_listener = undefined,
     request_set_selection: c.wl_listener = undefined,
     resize_edges: u32 = 0,
-    seat: ?*c.wlr_seat = null,
+    seat: *c.wlr_seat = undefined,
 
     new_output: c.wl_listener = undefined,
-    output_layout: ?*c.wlr_output_layout = null,
+    output_layout: *c.wlr_output_layout = undefined,
     outputs: c.wl_list = undefined,
 };
 
@@ -56,8 +56,8 @@ const Output = struct {
     frame: c.wl_listener,
     link: c.wl_list,
     request_state: c.wl_listener,
-    server: ?*Server,
-    wlr_output: ?*c.wlr_output,
+    server: *Server,
+    wlr_output: *c.wlr_output,
 };
 
 const Toplevel = struct {
@@ -69,16 +69,16 @@ const Toplevel = struct {
     request_maximize: c.wl_listener,
     request_move: c.wl_listener,
     request_resize: c.wl_listener,
-    scene_tree: ?*c.wlr_scene_tree,
-    server: ?*Server,
+    scene_tree: *c.wlr_scene_tree,
+    server: *Server,
     unmap: c.wl_listener,
-    xdg_toplevel: ?*c.wlr_xdg_toplevel,
+    xdg_toplevel: *c.wlr_xdg_toplevel,
 };
 
 const Popup = struct {
     commit: c.wl_listener,
     destroy: c.wl_listener,
-    xdg_popup: ?*c.wlr_xdg_popup,
+    xdg_popup: *c.wlr_xdg_popup,
 };
 
 const Keyboard = struct {
@@ -87,8 +87,8 @@ const Keyboard = struct {
     key_repeat: c.wl_listener,
     link: c.wl_list,
     modifiers: c.wl_listener,
-    server: ?*Server,
-    wlr_keyboard: ?*c.wlr_keyboard,
+    server: *Server,
+    wlr_keyboard: *c.wlr_keyboard,
 };
 
 pub fn init(p_init: std.process.Init) !Server {
@@ -142,12 +142,12 @@ pub fn init(p_init: std.process.Init) !Server {
     );
     server.new_xdg_toplevel.notify = server_new_xdg_toplevel;
     c.wl_signal_add(
-        &server.xdg_shell.?.events.new_toplevel,
+        &server.xdg_shell.events.new_toplevel,
         &server.new_xdg_toplevel,
     );
     server.new_xdg_popup.notify = server_new_xdg_popup;
     c.wl_signal_add(
-        &server.xdg_shell.?.events.new_popup,
+        &server.xdg_shell.events.new_popup,
         &server.new_xdg_popup,
     );
     server.cursor = c.wlr_cursor_create();
@@ -158,27 +158,27 @@ pub fn init(p_init: std.process.Init) !Server {
     server.cursor_mgr = c.wlr_xcursor_manager_create(null, 24);
     server.cursor_motion.notify = server_cursor_motion;
     c.wl_signal_add(
-        &server.cursor.?.events.motion,
+        &server.cursor.events.motion,
         &server.cursor_motion,
     );
     server.cursor_motion_absolute.notify = server_cursor_motion_absolute;
     c.wl_signal_add(
-        &server.cursor.?.events.motion_absolute,
+        &server.cursor.events.motion_absolute,
         &server.cursor_motion_absolute,
     );
     server.cursor_button.notify = server_cursor_button;
     c.wl_signal_add(
-        &server.cursor.?.events.button,
+        &server.cursor.events.button,
         &server.cursor_button,
     );
     server.cursor_aixs.notify = server_cursor_axis;
     c.wl_signal_add(
-        &server.cursor.?.events.axis,
+        &server.cursor.events.axis,
         &server.cursor_aixs,
     );
     server.cursor_frame.notify = server_cursor_frame;
     c.wl_signal_add(
-        &server.cursor.?.events.frame,
+        &server.cursor.events.frame,
         &server.cursor_frame,
     );
     c.wl_list_init(&server.keyboards);
@@ -190,17 +190,17 @@ pub fn init(p_init: std.process.Init) !Server {
     server.seat = c.wlr_seat_create(server.wl_display, "seat0");
     server.request_cursor.notify = server_request_cursor;
     c.wl_signal_add(
-        &server.seat.?.events.request_set_cursor,
+        &server.seat.events.request_set_cursor,
         &server.request_cursor,
     );
     server.pointer_focus_change.notify = seat_pointer_focus_change;
     c.wl_signal_add(
-        &server.seat.?.pointer_state.events.focus_change,
+        &server.seat.pointer_state.events.focus_change,
         &server.pointer_focus_change,
     );
     server.request_set_selection.notify = server_request_set_selection;
     c.wl_signal_add(
-        &server.seat.?.events.request_set_selection,
+        &server.seat.events.request_set_selection,
         &server.request_set_selection,
     );
     const socket = c.wl_display_add_socket_auto(server.wl_display);
@@ -246,7 +246,7 @@ pub fn init(p_init: std.process.Init) !Server {
     c.wl_list_remove(&server.pointer_focus_change.link);
     c.wl_list_remove(&server.request_set_selection.link);
     c.wl_list_remove(&server.new_output.link);
-    c.wlr_scene_node_destroy(&server.scene.?.tree.node);
+    c.wlr_scene_node_destroy(&server.scene.tree.node);
     c.wlr_xcursor_manager_destroy(server.cursor_mgr);
     c.wlr_cursor_destroy(server.cursor);
     c.wlr_allocator_destroy(server.allocator);
@@ -257,42 +257,42 @@ pub fn init(p_init: std.process.Init) !Server {
 }
 
 fn begin_interaction(
-    toplevel: ?*Toplevel,
+    toplevel: *Toplevel,
     mode: u32,
     edges: u32,
 ) callconv(.c) void {
     const mode_enum: CursorMode = @enumFromInt(mode);
-    const server = toplevel.?.server;
-    server.?.grabbed_toplevel = toplevel;
-    server.?.cursor_mode = mode_enum;
+    const server = toplevel.server;
+    server.grabbed_toplevel = toplevel;
+    server.cursor_mode = mode_enum;
     if (mode_enum == .CURSOR_MOVE) {
-        server.?.grab_x = server.?.cursor.?.x -
-            toplevel.?.scene_tree.?.node.x;
-        server.?.grab_y = server.?.cursor.?.y -
-            toplevel.?.scene_tree.?.node.y;
+        server.grab_x = server.cursor.x -
+            toplevel.scene_tree.node.x;
+        server.grab_y = server.cursor.y -
+            toplevel.scene_tree.node.y;
         return;
     }
-    const geo_box = &toplevel.?.xdg_toplevel.?.base.*.geometry;
-    const border_x = (toplevel.?.scene_tree.?.node.x - geo_box.*.x) +
+    const geo_box = &toplevel.xdg_toplevel.base.*.geometry;
+    const border_x = (toplevel.scene_tree.node.x - geo_box.*.x) +
         if ((edges & c.WLR_EDGE_RIGHT) != 0)
             geo_box.*.width
         else
             0;
-    const border_y = (toplevel.?.scene_tree.?.node.y - geo_box.*.y) +
+    const border_y = (toplevel.scene_tree.node.y - geo_box.*.y) +
         if ((edges & c.WLR_EDGE_BOTTOM) != 0)
             geo_box.*.height
         else
             0;
-    server.?.grab_x = server.?.cursor.?.x - border_x;
-    server.?.grab_y = server.?.cursor.?.y - border_y;
-    server.?.grab_geobox = geo_box.*;
-    server.?.grab_geobox.x += toplevel.?.scene_tree.?.node.x;
-    server.?.grab_geobox.y += toplevel.?.scene_tree.?.node.y;
-    server.?.resize_edges = edges;
+    server.grab_x = server.cursor.x - border_x;
+    server.grab_y = server.cursor.y - border_y;
+    server.grab_geobox = geo_box.*;
+    server.grab_geobox.x += toplevel.scene_tree.node.x;
+    server.grab_geobox.y += toplevel.scene_tree.node.y;
+    server.resize_edges = edges;
 }
 
 fn desktop_toplevel_at(
-    server: ?*Server,
+    server: *Server,
     lx: f64,
     ly: f64,
     surface: *?*c.wlr_surface,
@@ -300,7 +300,7 @@ fn desktop_toplevel_at(
     sy: *f64,
 ) ?*Toplevel {
     const node = c.wlr_scene_node_at(
-        &server.?.scene.?.tree.node,
+        &server.scene.tree.node,
         lx,
         ly,
         sx,
@@ -322,14 +322,11 @@ fn desktop_toplevel_at(
     return @ptrCast(@alignCast(tree.?.*.node.data));
 }
 
-fn focus_toplevel(toplevel: ?*Toplevel) void {
-    if (toplevel == null) {
-        return;
-    }
-    const server = toplevel.?.server;
-    const seat = server.?.seat;
-    const prev_surface = seat.?.keyboard_state.focused_surface;
-    const surface = toplevel.?.xdg_toplevel.?.base.*.surface;
+fn focus_toplevel(toplevel: *Toplevel) void {
+    const server = toplevel.server;
+    const seat = server.seat;
+    const prev_surface = seat.keyboard_state.focused_surface;
+    const surface = toplevel.xdg_toplevel.base.*.surface;
     if (prev_surface == surface) {
         return;
     }
@@ -340,15 +337,15 @@ fn focus_toplevel(toplevel: ?*Toplevel) void {
         }
     }
     c.wlr_scene_node_raise_to_top(
-        &toplevel.?.scene_tree.?.node,
+        &toplevel.scene_tree.node,
     );
-    c.wl_list_remove(&toplevel.?.link);
+    c.wl_list_remove(&toplevel.link);
     c.wl_list_insert(
-        &server.?.toplevels,
-        &toplevel.?.link,
+        &server.toplevels,
+        &toplevel.link,
     );
     _ = c.wlr_xdg_toplevel_set_activated(
-        toplevel.?.xdg_toplevel,
+        toplevel.xdg_toplevel,
         true,
     );
     const keyboard = c.wlr_seat_get_keyboard(seat);
@@ -363,16 +360,16 @@ fn focus_toplevel(toplevel: ?*Toplevel) void {
     }
 }
 
-fn handled_keybinding(server: ?*Server, sym: c.xkb_keysym_t) bool {
+fn handled_keybinding(server: *Server, sym: c.xkb_keysym_t) bool {
     switch (sym) {
         c.XKB_KEY_Escape => {
-            c.wl_display_terminate(server.?.wl_display);
+            c.wl_display_terminate(server.wl_display);
         },
         c.XKB_KEY_F1 => {
-            if (!(c.wl_list_length(&server.?.toplevels) < 2)) {
+            if (!(c.wl_list_length(&server.toplevels) < 2)) {
                 const toplevel: *Toplevel = @fieldParentPtr(
                     "link",
-                    @as(*c.wl_list, @ptrCast(server.?.toplevels.prev)),
+                    @as(*c.wl_list, @ptrCast(server.toplevels.prev)),
                 );
                 focus_toplevel(toplevel);
             }
@@ -406,7 +403,7 @@ fn keyboard_handle_key(
     const keycode = event.keycode + 8;
     var syms: *c.xkb_keysym_t = undefined;
     const nsyms = c.xkb_state_key_get_syms(
-        keyboard.wlr_keyboard.?.xkb_state,
+        keyboard.wlr_keyboard.xkb_state,
         keycode,
         @ptrCast(&syms),
     );
@@ -424,7 +421,7 @@ fn keyboard_handle_key(
         }
     }
     if (!handled) {
-        const seat = server.?.seat;
+        const seat = server.seat;
         _ = c.wlr_seat_set_keyboard(seat, keyboard.wlr_keyboard);
         c.wlr_seat_keyboard_notify_key(
             seat,
@@ -440,10 +437,10 @@ fn keyboard_handle_modifiers(
     _: ?*anyopaque,
 ) callconv(.c) void {
     const keyboard: *Keyboard = @fieldParentPtr("modifiers", listener.?);
-    c.wlr_seat_set_keyboard(keyboard.server.?.seat, keyboard.wlr_keyboard);
+    c.wlr_seat_set_keyboard(keyboard.server.seat, keyboard.wlr_keyboard);
     c.wlr_seat_keyboard_notify_modifiers(
-        keyboard.server.?.seat,
-        &keyboard.wlr_keyboard.?.modifiers,
+        keyboard.server.seat,
+        &keyboard.wlr_keyboard.modifiers,
     );
 }
 
@@ -464,7 +461,7 @@ fn output_frame(
     _: ?*anyopaque,
 ) callconv(.c) void {
     const output: *Output = @fieldParentPtr("frame", listener.?);
-    const scene = output.server.?.scene;
+    const scene = output.server.scene;
     const scene_output: *c.wlr_scene_output = c.wlr_scene_get_scene_output(
         scene,
         output.wlr_output,
@@ -488,14 +485,14 @@ fn process_cursor_motion(server: *Server, time: u32) void {
     switch (server.cursor_mode) {
         .CURSOR_MOVE => {
             c.wlr_scene_node_set_position(
-                &server.grabbed_toplevel.?.scene_tree.?.node,
-                @intFromFloat(server.cursor.?.x - server.grab_x),
-                @intFromFloat(server.cursor.?.y - server.grab_y),
+                &server.grabbed_toplevel.?.scene_tree.node,
+                @intFromFloat(server.cursor.x - server.grab_x),
+                @intFromFloat(server.cursor.y - server.grab_y),
             );
         },
         .CURSOR_RESIZE => {
-            const border_x: c_int = @intFromFloat(server.cursor.?.x - server.grab_x);
-            const border_y: c_int = @intFromFloat(server.cursor.?.y - server.grab_y);
+            const border_x: c_int = @intFromFloat(server.cursor.x - server.grab_x);
+            const border_y: c_int = @intFromFloat(server.cursor.y - server.grab_y);
             var new_left = server.grab_geobox.x;
             var new_right = server.grab_geobox.x + server.grab_geobox.width;
             var new_top = server.grab_geobox.y;
@@ -523,9 +520,9 @@ fn process_cursor_motion(server: *Server, time: u32) void {
                 }
             }
             const toplevel = server.grabbed_toplevel.?;
-            const geo_box = &toplevel.xdg_toplevel.?.base.*.geometry;
+            const geo_box = &toplevel.xdg_toplevel.base.*.geometry;
             c.wlr_scene_node_set_position(
-                &toplevel.scene_tree.?.node,
+                &toplevel.scene_tree.node,
                 new_left - geo_box.*.x,
                 new_top - geo_box.*.y,
             );
@@ -541,8 +538,8 @@ fn process_cursor_motion(server: *Server, time: u32) void {
             var surface: ?*c.wlr_surface = null;
             const toplevel: ?*Toplevel = desktop_toplevel_at(
                 server,
-                server.cursor.?.x,
-                server.cursor.?.y,
+                server.cursor.x,
+                server.cursor.y,
                 &surface,
                 &sx,
                 &sy,
@@ -565,9 +562,9 @@ fn process_cursor_motion(server: *Server, time: u32) void {
     }
 }
 
-fn reset_cursor_mode(server: ?*Server) void {
-    server.?.cursor_mode = .CURSOR_PASSTHROUGH;
-    server.?.grabbed_toplevel = null;
+fn reset_cursor_mode(server: *Server) void {
+    server.cursor_mode = .CURSOR_PASSTHROUGH;
+    server.grabbed_toplevel = null;
 }
 
 fn seat_pointer_focus_change(
@@ -622,13 +619,15 @@ fn server_cursor_button(
         var surface: ?*c.wlr_surface = undefined;
         const toplevel: ?*Toplevel = desktop_toplevel_at(
             server,
-            server.cursor.?.x,
-            server.cursor.?.y,
+            server.cursor.x,
+            server.cursor.y,
             &surface,
             &sx,
             &sy,
         );
-        focus_toplevel(toplevel);
+        if (toplevel) |tl| {
+            focus_toplevel(tl);
+        }
     }
 }
 
@@ -739,7 +738,7 @@ fn server_new_output(
     data: ?*anyopaque,
 ) callconv(.c) void {
     const server: *Server = @fieldParentPtr("new_output", listener.?);
-    const wlr_output: ?*c.wlr_output = @ptrCast(@alignCast(data));
+    const wlr_output: *c.wlr_output = @ptrCast(@alignCast(data));
     _ = c.wlr_output_init_render(
         wlr_output,
         server.allocator,
@@ -761,14 +760,14 @@ fn server_new_output(
     output.server = server;
     output.wlr_output = wlr_output;
     output.frame.notify = output_frame;
-    c.wl_signal_add(&wlr_output.?.events.frame, &output.frame);
+    c.wl_signal_add(&wlr_output.events.frame, &output.frame);
     output.request_state.notify = output_request_state;
     c.wl_signal_add(
-        &wlr_output.?.events.request_state,
+        &wlr_output.events.request_state,
         &output.request_state,
     );
     output.destroy.notify = output_destroy;
-    c.wl_signal_add(&wlr_output.?.events.destroy, &output.destroy);
+    c.wl_signal_add(&wlr_output.events.destroy, &output.destroy);
     c.wl_list_insert(&server.outputs, &output.link);
     const l_output = c.wlr_output_layout_add_auto(
         server.output_layout,
@@ -789,30 +788,30 @@ fn server_new_xdg_popup(
     _: ?*c.wl_listener,
     data: ?*anyopaque,
 ) callconv(.c) void {
-    const xdg_popup: ?*c.wlr_xdg_popup = @ptrCast(@alignCast(data));
+    const xdg_popup: *c.wlr_xdg_popup = @ptrCast(@alignCast(data));
     var popup = std.mem.Allocator.create(
         std.heap.c_allocator,
         Popup,
     ) catch unreachable;
     popup.xdg_popup = xdg_popup;
     const parent = c.wlr_xdg_surface_try_from_wlr_surface(
-        xdg_popup.?.parent,
+        xdg_popup.parent,
     );
     if (parent == null) {
         return;
     }
-    xdg_popup.?.base.*.data = c.wlr_scene_xdg_surface_create(
+    xdg_popup.base.*.data = c.wlr_scene_xdg_surface_create(
         @ptrCast(@alignCast(parent.*.data)),
-        xdg_popup.?.base,
+        xdg_popup.base,
     );
     popup.commit.notify = xdg_popup_commit;
     c.wl_signal_add(
-        &xdg_popup.?.base.*.surface.*.events.commit,
+        &xdg_popup.base.*.surface.*.events.commit,
         &popup.commit,
     );
     popup.destroy.notify = xdg_popup_destroy;
     c.wl_signal_add(
-        &xdg_popup.?.events.destroy,
+        &xdg_popup.events.destroy,
         &popup.destroy,
     );
 }
@@ -822,7 +821,7 @@ fn server_new_xdg_toplevel(
     data: ?*anyopaque,
 ) callconv(.c) void {
     const server: *Server = @fieldParentPtr("new_xdg_toplevel", listener.?);
-    const xdg_toplevel: ?*c.wlr_xdg_toplevel = @ptrCast(@alignCast(data));
+    const xdg_toplevel: *c.wlr_xdg_toplevel = @ptrCast(@alignCast(data));
     var toplevel = std.mem.Allocator.create(
         std.heap.c_allocator,
         Toplevel,
@@ -830,49 +829,49 @@ fn server_new_xdg_toplevel(
     toplevel.server = server;
     toplevel.xdg_toplevel = xdg_toplevel;
     toplevel.scene_tree = c.wlr_scene_xdg_surface_create(
-        &toplevel.server.?.scene.?.tree,
-        xdg_toplevel.?.base,
+        &toplevel.server.scene.tree,
+        xdg_toplevel.base,
     );
-    toplevel.*.scene_tree.?.node.data = toplevel;
-    xdg_toplevel.?.base.*.data = toplevel.scene_tree;
+    toplevel.*.scene_tree.node.data = toplevel;
+    xdg_toplevel.base.*.data = toplevel.scene_tree;
     toplevel.map.notify = xdg_toplevel_map;
     c.wl_signal_add(
-        &xdg_toplevel.?.base.*.surface.*.events.map,
+        &xdg_toplevel.base.*.surface.*.events.map,
         &toplevel.map,
     );
     toplevel.unmap.notify = xdg_toplevel_unmap;
     c.wl_signal_add(
-        &xdg_toplevel.?.base.*.surface.*.events.unmap,
+        &xdg_toplevel.base.*.surface.*.events.unmap,
         &toplevel.unmap,
     );
     toplevel.commit.notify = xdg_toplevel_commit;
     c.wl_signal_add(
-        &xdg_toplevel.?.base.*.surface.*.events.commit,
+        &xdg_toplevel.base.*.surface.*.events.commit,
         &toplevel.commit,
     );
     toplevel.destroy.notify = xdg_toplevel_destroy;
     c.wl_signal_add(
-        &xdg_toplevel.?.base.*.surface.*.events.destroy,
+        &xdg_toplevel.base.*.surface.*.events.destroy,
         &toplevel.destroy,
     );
     toplevel.request_move.notify = xdg_toplevel_request_move;
     c.wl_signal_add(
-        &xdg_toplevel.?.events.request_move,
+        &xdg_toplevel.events.request_move,
         &toplevel.request_move,
     );
     toplevel.request_resize.notify = xdg_toplevel_request_resize;
     c.wl_signal_add(
-        &xdg_toplevel.?.events.request_resize,
+        &xdg_toplevel.events.request_resize,
         &toplevel.request_resize,
     );
     toplevel.request_maximize.notify = xdg_toplevel_request_maximize;
     c.wl_signal_add(
-        &xdg_toplevel.?.events.request_maximize,
+        &xdg_toplevel.events.request_maximize,
         &toplevel.request_maximize,
     );
     toplevel.request_fullscreen.notify = xdg_toplevel_request_fullscreen;
     c.wl_signal_add(
-        &xdg_toplevel.?.events.request_fullscreen,
+        &xdg_toplevel.events.request_fullscreen,
         &toplevel.request_fullscreen,
     );
 }
@@ -883,7 +882,7 @@ fn server_request_cursor(
 ) callconv(.c) void {
     const server: *Server = @fieldParentPtr("request_cursor", listener.?);
     const event: *c.wlr_seat_pointer_request_set_cursor_event = @ptrCast(@alignCast(data));
-    const focused_event = server.seat.?.pointer_state.focused_client;
+    const focused_event = server.seat.pointer_state.focused_client;
     if (focused_event == event.seat_client) {
         c.wlr_cursor_set_surface(
             server.cursor,
@@ -907,10 +906,10 @@ fn xdg_popup_commit(
     listener: ?*c.wl_listener,
     _: ?*anyopaque,
 ) callconv(.c) void {
-    const popup: ?*Popup = @fieldParentPtr("commit", listener.?);
-    if (popup.?.xdg_popup.?.base.*.initial_commit) {
+    const popup: *Popup = @fieldParentPtr("commit", listener.?);
+    if (popup.xdg_popup.base.*.initial_commit) {
         _ = c.wlr_xdg_surface_schedule_configure(
-            popup.?.xdg_popup.?.base,
+            popup.xdg_popup.base,
         );
     }
 }
@@ -919,20 +918,20 @@ fn xdg_popup_destroy(
     listener: ?*c.wl_listener,
     _: ?*anyopaque,
 ) callconv(.c) void {
-    const popup: ?*Popup = @fieldParentPtr("destroy", listener.?);
-    c.wl_list_remove(&popup.?.commit.link);
-    c.wl_list_remove(&popup.?.destroy.link);
-    std.mem.Allocator.destroy(std.heap.c_allocator, popup.?);
+    const popup: *Popup = @fieldParentPtr("destroy", listener.?);
+    c.wl_list_remove(&popup.commit.link);
+    c.wl_list_remove(&popup.destroy.link);
+    std.mem.Allocator.destroy(std.heap.c_allocator, popup);
 }
 
 fn xdg_toplevel_commit(
     listener: ?*c.wl_listener,
     _: ?*anyopaque,
 ) callconv(.c) void {
-    const toplevel: ?*Toplevel = @fieldParentPtr("commit", listener.?);
-    if (toplevel.?.xdg_toplevel.?.base.*.initial_commit) {
+    const toplevel: *Toplevel = @fieldParentPtr("commit", listener.?);
+    if (toplevel.xdg_toplevel.base.*.initial_commit) {
         _ = c.wlr_xdg_toplevel_set_size(
-            toplevel.?.xdg_toplevel,
+            toplevel.xdg_toplevel,
             0,
             0,
         );
@@ -943,26 +942,26 @@ fn xdg_toplevel_destroy(
     listener: ?*c.wl_listener,
     _: ?*anyopaque,
 ) callconv(.c) void {
-    const toplevel: ?*Toplevel = @fieldParentPtr("destroy", listener.?);
-    c.wl_list_remove(&toplevel.?.map.link);
-    c.wl_list_remove(&toplevel.?.unmap.link);
-    c.wl_list_remove(&toplevel.?.commit.link);
-    c.wl_list_remove(&toplevel.?.destroy.link);
-    c.wl_list_remove(&toplevel.?.request_move.link);
-    c.wl_list_remove(&toplevel.?.request_resize.link);
-    c.wl_list_remove(&toplevel.?.request_maximize.link);
-    c.wl_list_remove(&toplevel.?.request_fullscreen.link);
-    std.mem.Allocator.destroy(std.heap.c_allocator, toplevel.?);
+    const toplevel: *Toplevel = @fieldParentPtr("destroy", listener.?);
+    c.wl_list_remove(&toplevel.map.link);
+    c.wl_list_remove(&toplevel.unmap.link);
+    c.wl_list_remove(&toplevel.commit.link);
+    c.wl_list_remove(&toplevel.destroy.link);
+    c.wl_list_remove(&toplevel.request_move.link);
+    c.wl_list_remove(&toplevel.request_resize.link);
+    c.wl_list_remove(&toplevel.request_maximize.link);
+    c.wl_list_remove(&toplevel.request_fullscreen.link);
+    std.mem.Allocator.destroy(std.heap.c_allocator, toplevel);
 }
 
 fn xdg_toplevel_map(
     listener: ?*c.wl_listener,
     _: ?*anyopaque,
 ) callconv(.c) void {
-    const toplevel: ?*Toplevel = @fieldParentPtr("map", listener.?);
+    const toplevel: *Toplevel = @fieldParentPtr("map", listener.?);
     c.wl_list_insert(
-        &toplevel.?.server.?.toplevels,
-        &toplevel.?.link,
+        &toplevel.server.toplevels,
+        &toplevel.link,
     );
     focus_toplevel(toplevel);
 }
@@ -971,10 +970,10 @@ fn xdg_toplevel_request_fullscreen(
     listener: ?*c.wl_listener,
     _: ?*anyopaque,
 ) callconv(.c) void {
-    const toplevel: ?*Toplevel = @fieldParentPtr("request_fullscreen", listener.?);
-    if (toplevel.?.xdg_toplevel.?.base.*.initialized) {
+    const toplevel: *Toplevel = @fieldParentPtr("request_fullscreen", listener.?);
+    if (toplevel.xdg_toplevel.base.*.initialized) {
         _ = c.wlr_xdg_surface_schedule_configure(
-            toplevel.?.xdg_toplevel.?.base,
+            toplevel.xdg_toplevel.base,
         );
     }
 }
@@ -983,10 +982,10 @@ fn xdg_toplevel_request_maximize(
     listener: ?*c.wl_listener,
     _: ?*anyopaque,
 ) callconv(.c) void {
-    const toplevel: ?*Toplevel = @fieldParentPtr("request_maximize", listener.?);
-    if (toplevel.?.xdg_toplevel.?.base.*.initialized) {
+    const toplevel: *Toplevel = @fieldParentPtr("request_maximize", listener.?);
+    if (toplevel.xdg_toplevel.base.*.initialized) {
         _ = c.wlr_xdg_surface_schedule_configure(
-            toplevel.?.xdg_toplevel.?.base,
+            toplevel.xdg_toplevel.base,
         );
     }
 }
@@ -995,7 +994,7 @@ fn xdg_toplevel_request_move(
     listener: ?*c.wl_listener,
     _: ?*anyopaque,
 ) callconv(.c) void {
-    const toplevel: ?*Toplevel = @fieldParentPtr("request_move", listener.?);
+    const toplevel: *Toplevel = @fieldParentPtr("request_move", listener.?);
     begin_interaction(
         toplevel,
         @intFromEnum(CursorMode.CURSOR_MOVE),
@@ -1007,7 +1006,7 @@ fn xdg_toplevel_request_resize(
     listener: ?*c.wl_listener,
     data: ?*anyopaque,
 ) callconv(.c) void {
-    const toplevel: ?*Toplevel = @fieldParentPtr("request_resize", listener.?);
+    const toplevel: *Toplevel = @fieldParentPtr("request_resize", listener.?);
     const event: *c.wlr_xdg_toplevel_resize_event = @ptrCast(@alignCast(data));
     begin_interaction(
         toplevel,
@@ -1020,9 +1019,9 @@ fn xdg_toplevel_unmap(
     listener: ?*c.wl_listener,
     _: ?*anyopaque,
 ) callconv(.c) void {
-    const toplevel: ?*Toplevel = @fieldParentPtr("unmap", listener.?);
-    if (toplevel == toplevel.?.server.?.grabbed_toplevel) {
-        reset_cursor_mode(toplevel.?.server);
+    const toplevel: *Toplevel = @fieldParentPtr("unmap", listener.?);
+    if (toplevel == toplevel.server.grabbed_toplevel) {
+        reset_cursor_mode(toplevel.server);
     }
-    c.wl_list_remove(&toplevel.?.link);
+    c.wl_list_remove(&toplevel.link);
 }
