@@ -505,7 +505,8 @@ fn process_cursor_motion(server: *Server, time: u32) void {
                 if (new_bottom <= new_top) {
                     new_bottom = new_top + 1;
                 }
-            } else if ((server.resize_edges & c.WLR_EDGE_LEFT) != 0) {
+            }
+            if ((server.resize_edges & c.WLR_EDGE_LEFT) != 0) {
                 new_left = border_x;
                 if (new_right <= new_left) {
                     new_left = new_right - 1;
