@@ -193,6 +193,11 @@ pub fn init(p_init: std.process.Init) !Server {
         &server.seat.?.events.request_set_cursor,
         &server.request_cursor,
     );
+    server.pointer_focus_change.notify = seat_pointer_focus_change;
+    c.wl_signal_add(
+        &server.seat.?.pointer_state.events.focus_change,
+        &server.pointer_focus_change,
+    );
     server.request_set_selection.notify = server_request_set_selection;
     c.wl_signal_add(
         &server.seat.?.events.request_set_selection,
@@ -563,6 +568,21 @@ fn process_cursor_motion(server: *Server, time: u32) void {
 fn reset_cursor_mode(server: ?*Server) void {
     server.?.cursor_mode = .CURSOR_PASSTHROUGH;
     server.?.grabbed_toplevel = null;
+}
+
+fn seat_pointer_focus_change(
+    listener: ?*c.wl_listener,
+    data: ?*anyopaque,
+) callconv(.c) void {
+    const server: *Server = @fieldParentPtr("pointer_focus_change", listener.?);
+    const event: *c.wlr_seat_pointer_focus_change_event = @ptrCast(@alignCast(data));
+    if (event.new_surface == null) {
+        c.wlr_cursor_set_xcursor(
+            server.cursor,
+            server.cursor_mgr,
+            "default",
+        );
+    }
 }
 
 fn server_cursor_axis(
