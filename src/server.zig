@@ -269,12 +269,12 @@ fn begin_interaction(
     }
     const geo_box = &toplevel.?.xdg_toplevel.?.base.*.geometry;
     const border_x = (toplevel.?.scene_tree.?.node.x - geo_box.*.x) +
-        if (edges & c.WLR_EDGE_RIGHT == 1)
+        if ((edges & c.WLR_EDGE_RIGHT) != 0)
             geo_box.*.width
         else
             0;
     const border_y = (toplevel.?.scene_tree.?.node.y - geo_box.*.y) +
-        if (edges & c.WLR_EDGE_BOTTOM == 1)
+        if ((edges & c.WLR_EDGE_BOTTOM) != 0)
             geo_box.*.height
         else
             0;
@@ -407,7 +407,7 @@ fn keyboard_handle_key(
     );
     var handled = false;
     const modifiers = c.wlr_keyboard_get_modifiers(keyboard.wlr_keyboard);
-    if (modifiers & c.WLR_MODIFIER_ALT != 0 and
+    if ((modifiers & c.WLR_MODIFIER_ALT) != 0 and
         event.state == c.WL_KEYBOARD_KEY_STATE_PRESSED)
     {
         const syms_slice = @as(
@@ -495,22 +495,22 @@ fn process_cursor_motion(server: *Server, time: u32) void {
             var new_right = server.grab_geobox.x + server.grab_geobox.width;
             var new_top = server.grab_geobox.y;
             var new_bottom = server.grab_geobox.y + server.grab_geobox.height;
-            if (server.resize_edges & c.WLR_EDGE_TOP == 1) {
+            if ((server.resize_edges & c.WLR_EDGE_TOP) != 0) {
                 new_top = border_y;
                 if (new_bottom <= new_top) {
                     new_top = new_bottom - 1;
                 }
-            } else if (server.resize_edges & c.WLR_EDGE_BOTTOM == 1) {
+            } else if ((server.resize_edges & c.WLR_EDGE_BOTTOM) != 0) {
                 new_bottom = border_y;
                 if (new_bottom <= new_top) {
                     new_bottom = new_top + 1;
                 }
-            } else if (server.resize_edges & c.WLR_EDGE_LEFT == 1) {
+            } else if ((server.resize_edges & c.WLR_EDGE_LEFT) != 0) {
                 new_left = border_x;
                 if (new_right <= new_left) {
                     new_left = new_right - 1;
                 }
-            } else if (server.resize_edges & c.WLR_EDGE_RIGHT == 1) {
+            } else if ((server.resize_edges & c.WLR_EDGE_RIGHT) != 0) {
                 new_right = border_x;
                 if (new_right <= new_left) {
                     new_right = new_left + 1;
