@@ -15,18 +15,18 @@ const Server = struct {
     scene_layout: ?*c.wlr_scene_output_layout = null,
     wl_display: ?*c.wl_display,
 
-    new_xdg_popup: c.wl_listener = undefined,
-    new_xdg_toplevel: c.wl_listener = undefined,
+    new_xdg_popup: c.wl_listener = .{ .notify = server_new_xdg_popup },
+    new_xdg_toplevel: c.wl_listener = .{ .notify = server_new_xdg_toplevel },
     toplevels: c.wl_list = undefined,
     xdg_shell: *c.wlr_xdg_shell = undefined,
 
     cursor: *c.wlr_cursor = undefined,
-    cursor_aixs: c.wl_listener = undefined,
-    cursor_button: c.wl_listener = undefined,
-    cursor_frame: c.wl_listener = undefined,
+    cursor_aixs: c.wl_listener = .{ .notify = server_cursor_axis },
+    cursor_button: c.wl_listener = .{ .notify = server_cursor_button },
+    cursor_frame: c.wl_listener = .{ .notify = server_cursor_frame },
     cursor_mgr: *c.wlr_xcursor_manager = undefined,
-    cursor_motion: c.wl_listener = undefined,
-    cursor_motion_absolute: c.wl_listener = undefined,
+    cursor_motion: c.wl_listener = .{ .notify = server_cursor_motion },
+    cursor_motion_absolute: c.wl_listener = .{ .notify = server_cursor_motion_absolute },
 
     cursor_mode: CursorMode = .CURSOR_PASSTHROUGH,
     grab_geobox: c.wlr_box = undefined,
@@ -34,14 +34,14 @@ const Server = struct {
     grab_y: f64 = 0.0,
     grabbed_toplevel: ?*Toplevel = null,
     keyboards: c.wl_list = undefined,
-    new_input: c.wl_listener = undefined,
-    pointer_focus_change: c.wl_listener = undefined,
-    request_cursor: c.wl_listener = undefined,
-    request_set_selection: c.wl_listener = undefined,
+    new_input: c.wl_listener = .{ .notify = server_new_input },
+    pointer_focus_change: c.wl_listener = .{ .notify = seat_pointer_focus_change },
+    request_cursor: c.wl_listener = .{ .notify = server_request_cursor },
+    request_set_selection: c.wl_listener = .{ .notify = server_request_set_selection },
     resize_edges: u32 = 0,
     seat: *c.wlr_seat = undefined,
 
-    new_output: c.wl_listener = undefined,
+    new_output: c.wl_listener = .{ .notify = server_new_output },
     output_layout: *c.wlr_output_layout = undefined,
     outputs: c.wl_list = undefined,
 };
@@ -125,7 +125,6 @@ pub fn init(p_init: std.process.Init) !Server {
     _ = c.wlr_data_device_manager_create(server.wl_display);
     server.output_layout = c.wlr_output_layout_create(server.wl_display);
     c.wl_list_init(&server.outputs);
-    server.new_output.notify = server_new_output;
     c.wl_signal_add(
         &server.backend.?.events.new_output,
         &server.new_output,
@@ -140,12 +139,10 @@ pub fn init(p_init: std.process.Init) !Server {
         server.wl_display,
         3,
     );
-    server.new_xdg_toplevel.notify = server_new_xdg_toplevel;
     c.wl_signal_add(
         &server.xdg_shell.events.new_toplevel,
         &server.new_xdg_toplevel,
     );
-    server.new_xdg_popup.notify = server_new_xdg_popup;
     c.wl_signal_add(
         &server.xdg_shell.events.new_popup,
         &server.new_xdg_popup,
@@ -156,49 +153,40 @@ pub fn init(p_init: std.process.Init) !Server {
         server.output_layout,
     );
     server.cursor_mgr = c.wlr_xcursor_manager_create(null, 24);
-    server.cursor_motion.notify = server_cursor_motion;
     c.wl_signal_add(
         &server.cursor.events.motion,
         &server.cursor_motion,
     );
-    server.cursor_motion_absolute.notify = server_cursor_motion_absolute;
     c.wl_signal_add(
         &server.cursor.events.motion_absolute,
         &server.cursor_motion_absolute,
     );
-    server.cursor_button.notify = server_cursor_button;
     c.wl_signal_add(
         &server.cursor.events.button,
         &server.cursor_button,
     );
-    server.cursor_aixs.notify = server_cursor_axis;
     c.wl_signal_add(
         &server.cursor.events.axis,
         &server.cursor_aixs,
     );
-    server.cursor_frame.notify = server_cursor_frame;
     c.wl_signal_add(
         &server.cursor.events.frame,
         &server.cursor_frame,
     );
     c.wl_list_init(&server.keyboards);
-    server.new_input.notify = server_new_input;
     c.wl_signal_add(
         &server.backend.?.events.new_input,
         &server.new_input,
     );
     server.seat = c.wlr_seat_create(server.wl_display, "seat0");
-    server.request_cursor.notify = server_request_cursor;
     c.wl_signal_add(
         &server.seat.events.request_set_cursor,
         &server.request_cursor,
     );
-    server.pointer_focus_change.notify = seat_pointer_focus_change;
     c.wl_signal_add(
         &server.seat.pointer_state.events.focus_change,
         &server.pointer_focus_change,
     );
-    server.request_set_selection.notify = server_request_set_selection;
     c.wl_signal_add(
         &server.seat.events.request_set_selection,
         &server.request_set_selection,
