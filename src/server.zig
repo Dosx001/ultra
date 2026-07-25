@@ -851,7 +851,7 @@ fn server_new_xdg_toplevel(
     );
     toplevel.destroy.notify = xdg_toplevel_destroy;
     c.wl_signal_add(
-        &xdg_toplevel.base.*.surface.*.events.destroy,
+        &xdg_toplevel.events.destroy,
         &toplevel.destroy,
     );
     toplevel.request_move.notify = xdg_toplevel_request_move;
