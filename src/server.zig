@@ -213,7 +213,7 @@ pub fn init(p_init: std.process.Init) !Server {
         _ = std.os.linux.execve(
             "/bin/ghostty",
             &.{},
-            std.mem.span(std.c.environ),
+            std.c.environ,
         );
     }
     std.log.info(
