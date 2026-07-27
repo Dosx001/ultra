@@ -209,11 +209,16 @@ pub fn init(p_init: std.process.Init) !Server {
         std.log.err("failed to set WAYLAND_DISPLAY", .{});
         return error.EnvSet;
     };
+    const environ = p_init.environ_map.createPosixBlock(p_init.gpa, .{}) catch {
+        std.log.err("failed to create posix block", .{});
+        return error.PosixBlock;
+    };
+    defer environ.deinit(p_init.gpa);
     if (std.os.linux.fork() == 0) {
         _ = std.os.linux.execve(
             "/bin/ghostty",
             &.{},
-            std.c.environ,
+            environ.slice,
         );
     }
     std.log.info(
