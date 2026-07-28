@@ -95,15 +95,18 @@ pub fn init(p_init: std.process.Init) !Server {
     var server = Server{
         .wl_display = c.wl_display_create(),
     };
+    defer c.wl_display_destroy(server.wl_display);
     server.backend = c.wlr_backend_autocreate(
         c.wl_display_get_event_loop(server.wl_display),
         null,
     );
+    defer c.wlr_backend_destroy(server.backend);
     if (server.backend == null) {
         std.log.err("failed to create wlr_backend", .{});
         return error.BackendCreation;
     }
     server.renderer = c.wlr_renderer_autocreate(server.backend);
+    defer c.wlr_renderer_destroy(server.renderer);
     if (server.renderer == null) {
         std.log.err("failed to create wlr_renderer", .{});
         return error.RendererCreation;
@@ -116,6 +119,7 @@ pub fn init(p_init: std.process.Init) !Server {
         server.backend,
         server.renderer,
     );
+    defer c.wlr_allocator_destroy(server.allocator);
     if (server.allocator == null) {
         std.log.err("failed to create wlr_allocator", .{});
         return error.AllocatorCreation;
@@ -129,6 +133,7 @@ pub fn init(p_init: std.process.Init) !Server {
         &server.backend.?.events.new_output,
         &server.new_output,
     );
+    defer c.wl_list_remove(&server.new_output.link);
     server.scene = c.wlr_scene_create();
     server.scene_layout = c.wlr_scene_attach_output_layout(
         server.scene,
@@ -143,69 +148,77 @@ pub fn init(p_init: std.process.Init) !Server {
         &server.xdg_shell.events.new_toplevel,
         &server.new_xdg_toplevel,
     );
+    defer c.wl_list_remove(&server.new_xdg_toplevel.link);
     c.wl_signal_add(
         &server.xdg_shell.events.new_popup,
         &server.new_xdg_popup,
     );
+    defer c.wl_list_remove(&server.new_xdg_popup.link);
     server.cursor = c.wlr_cursor_create();
+    defer c.wlr_cursor_destroy(server.cursor);
     c.wlr_cursor_attach_output_layout(
         server.cursor,
         server.output_layout,
     );
     server.cursor_mgr = c.wlr_xcursor_manager_create(null, 24);
+    defer c.wlr_xcursor_manager_destroy(server.cursor_mgr);
     c.wl_signal_add(
         &server.cursor.events.motion,
         &server.cursor_motion,
     );
+    defer c.wl_list_remove(&server.cursor_motion.link);
     c.wl_signal_add(
         &server.cursor.events.motion_absolute,
         &server.cursor_motion_absolute,
     );
+    defer c.wl_list_remove(&server.cursor_motion_absolute.link);
     c.wl_signal_add(
         &server.cursor.events.button,
         &server.cursor_button,
     );
+    defer c.wl_list_remove(&server.cursor_button.link);
     c.wl_signal_add(
         &server.cursor.events.axis,
         &server.cursor_aixs,
     );
+    defer c.wl_list_remove(&server.cursor_aixs.link);
     c.wl_signal_add(
         &server.cursor.events.frame,
         &server.cursor_frame,
     );
+    defer c.wl_list_remove(&server.cursor_frame.link);
     c.wl_list_init(&server.keyboards);
     c.wl_signal_add(
         &server.backend.?.events.new_input,
         &server.new_input,
     );
+    defer c.wl_list_remove(&server.new_input.link);
     server.seat = c.wlr_seat_create(server.wl_display, "seat0");
     c.wl_signal_add(
         &server.seat.events.request_set_cursor,
         &server.request_cursor,
     );
+    defer c.wl_list_remove(&server.request_cursor.link);
     c.wl_signal_add(
         &server.seat.pointer_state.events.focus_change,
         &server.pointer_focus_change,
     );
+    defer c.wl_list_remove(&server.pointer_focus_change.link);
     c.wl_signal_add(
         &server.seat.events.request_set_selection,
         &server.request_set_selection,
     );
+    defer c.wl_list_remove(&server.request_set_selection.link);
     const socket = c.wl_display_add_socket_auto(server.wl_display);
     if (socket == null) {
-        c.wlr_backend_destroy(server.backend);
         std.log.err("failed to create wl_display socket", .{});
         return error.SocketCreation;
     }
     if (!c.wlr_backend_start(server.backend)) {
-        c.wlr_backend_destroy(server.backend);
-        c.wl_display_destroy(server.wl_display);
         std.log.err("failed to start wlr_backend", .{});
         return error.BackendStart;
     }
     p_init.environ_map.put("WAYLAND_DISPLAY", std.mem.span(socket)) catch {
-        c.wlr_backend_destroy(server.backend);
-        c.wl_display_destroy(server.wl_display);
         std.log.err("failed to set WAYLAND_DISPLAY", .{});
         return error.EnvSet;
     };
@@ -227,25 +240,7 @@ pub fn init(p_init: std.process.Init) !Server {
     );
     c.wl_display_run(server.wl_display);
     c.wl_display_destroy_clients(server.wl_display);
-    c.wl_list_remove(&server.new_xdg_toplevel.link);
-    c.wl_list_remove(&server.new_xdg_popup.link);
-    c.wl_list_remove(&server.cursor_motion.link);
-    c.wl_list_remove(&server.cursor_motion_absolute.link);
-    c.wl_list_remove(&server.cursor_button.link);
-    c.wl_list_remove(&server.cursor_aixs.link);
-    c.wl_list_remove(&server.cursor_frame.link);
-    c.wl_list_remove(&server.new_input.link);
-    c.wl_list_remove(&server.request_cursor.link);
-    c.wl_list_remove(&server.pointer_focus_change.link);
-    c.wl_list_remove(&server.request_set_selection.link);
-    c.wl_list_remove(&server.new_output.link);
     c.wlr_scene_node_destroy(&server.scene.tree.node);
-    c.wlr_xcursor_manager_destroy(server.cursor_mgr);
-    c.wlr_cursor_destroy(server.cursor);
-    c.wlr_allocator_destroy(server.allocator);
-    c.wlr_renderer_destroy(server.renderer);
-    c.wlr_backend_destroy(server.backend);
-    c.wl_display_destroy(server.wl_display);
     return server;
 }
 
