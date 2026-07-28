@@ -3,14 +3,14 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
-    const translate_c = b.addTranslateC(.{
-        .root_source_file = b.path("src/c.h"),
+    const wayland = b.addTranslateC(.{
+        .root_source_file = b.path("include/wayland.h"),
         .target = target,
         .optimize = optimize,
     });
-    translate_c.linkSystemLibrary("wlroots-0.20", .{});
-    translate_c.linkSystemLibrary("wayland-server", .{});
-    translate_c.linkSystemLibrary("xkbcommon", .{});
+    wayland.linkSystemLibrary("wlroots-0.20", .{});
+    wayland.linkSystemLibrary("wayland-server", .{});
+    wayland.linkSystemLibrary("xkbcommon", .{});
     const exe = b.addExecutable(.{
         .name = "ultra",
         .root_module = b.createModule(.{
@@ -18,8 +18,8 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .imports = &.{.{
-                .name = "c",
-                .module = translate_c.createModule(),
+                .name = "wayland",
+                .module = wayland.createModule(),
             }},
         }),
     });
