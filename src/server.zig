@@ -13,6 +13,7 @@ const Server = struct {
     renderer: ?*wl.wlr_renderer = null,
     scene: *wl.wlr_scene = undefined,
     scene_layout: ?*wl.wlr_scene_output_layout = null,
+    session: ?*wl.wlr_session = null,
     wl_display: ?*wl.wl_display,
 
     new_xdg_popup: wl.wl_listener = .{ .notify = server_new_xdg_popup },
@@ -98,7 +99,7 @@ pub fn init(p_init: std.process.Init) !Server {
     defer wl.wl_display_destroy(server.wl_display);
     server.backend = wl.wlr_backend_autocreate(
         wl.wl_display_get_event_loop(server.wl_display),
-        null,
+        &server.session,
     );
     defer wl.wlr_backend_destroy(server.backend);
     if (server.backend == null) {
@@ -349,6 +350,13 @@ fn focus_toplevel(toplevel: *Toplevel) void {
 }
 
 fn handled_keybinding(server: *Server, sym: wl.xkb_keysym_t) bool {
+    if ((wl.XKB_KEY_XF86Switch_VT_1 <= sym) and (sym <= wl.XKB_KEY_XF86Switch_VT_12)) {
+        const session = server.session;
+        if (session != null) {
+            _ = wl.wlr_session_change_vt(session, sym - wl.XKB_KEY_XF86Switch_VT_1 + 1);
+            return true;
+        }
+    }
     switch (sym) {
         wl.XKB_KEY_Escape => {
             wl.wl_display_terminate(server.wl_display);
