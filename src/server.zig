@@ -47,6 +47,16 @@ const Server = struct {
     outputs: wl.wl_list = undefined,
 };
 
+const Keyboard = struct {
+    destroy: wl.wl_listener,
+    key: wl.wl_listener,
+    key_repeat: wl.wl_listener,
+    link: wl.wl_list,
+    modifiers: wl.wl_listener,
+    server: *Server,
+    wlr_keyboard: *wl.wlr_keyboard,
+};
+
 const Output = struct {
     destroy: wl.wl_listener,
     events: struct {
@@ -59,6 +69,12 @@ const Output = struct {
     request_state: wl.wl_listener,
     server: *Server,
     wlr_output: *wl.wlr_output,
+};
+
+const Popup = struct {
+    commit: wl.wl_listener,
+    destroy: wl.wl_listener,
+    xdg_popup: *wl.wlr_xdg_popup,
 };
 
 const Toplevel = struct {
@@ -74,22 +90,6 @@ const Toplevel = struct {
     server: *Server,
     unmap: wl.wl_listener,
     xdg_toplevel: *wl.wlr_xdg_toplevel,
-};
-
-const Popup = struct {
-    commit: wl.wl_listener,
-    destroy: wl.wl_listener,
-    xdg_popup: *wl.wlr_xdg_popup,
-};
-
-const Keyboard = struct {
-    destroy: wl.wl_listener,
-    key: wl.wl_listener,
-    key_repeat: wl.wl_listener,
-    link: wl.wl_list,
-    modifiers: wl.wl_listener,
-    server: *Server,
-    wlr_keyboard: *wl.wlr_keyboard,
 };
 
 pub fn init(p_init: std.process.Init) !Server {
