@@ -45,6 +45,9 @@ const Server = struct {
     new_output: wl.wl_listener = .{ .notify = server_new_output },
     output_layout: *wl.wlr_output_layout = undefined,
     outputs: wl.wl_list = undefined,
+
+    layer_shell: *wl.wlr_layer_shell_v1 = undefined,
+    new_layer_surface: wl.wl_listener = .{ .notify = handle_new_layer_surface },
 };
 
 const Keyboard = struct {
@@ -90,6 +93,32 @@ const Toplevel = struct {
     server: *Server,
     unmap: wl.wl_listener,
     xdg_toplevel: *wl.wlr_xdg_toplevel,
+};
+
+const LayerOuput = struct {
+    background: *wl.wlr_scene_tree,
+    bottom: *wl.wlr_scene_tree,
+    output: *wl.wlr_output,
+    overlay: *wl.wlr_scene_tree,
+    top: *wl.wlr_scene_tree,
+};
+
+const LayerShell = struct {
+    display: *wl.wl_display,
+    output: *LayerOuput,
+    shell: *wl.wlr_layer_shell_v1,
+
+    new_surface: wl.wl_listener,
+};
+
+const LayerView = struct {
+    scene: ?*wl.wlr_scene_layer_surface_v1,
+    surface: *wl.wlr_layer_surface_v1,
+
+    commit: wl.wl_listener,
+    destroy: wl.wl_listener,
+    map: wl.wl_listener,
+    unmap: wl.wl_listener,
 };
 
 pub fn init(p_init: std.process.Init) !Server {
@@ -210,6 +239,15 @@ pub fn init(p_init: std.process.Init) !Server {
         &server.request_set_selection,
     );
     defer wl.wl_list_remove(&server.request_set_selection.link);
+    server.layer_shell = wl.wlr_layer_shell_v1_create(
+        server.wl_display,
+        wl.LAYER_SHELL_VERSION,
+    );
+    wl.wl_signal_add(
+        &server.layer_shell.events.new_surface,
+        &server.new_layer_surface,
+    );
+    defer wl.wl_list_remove(&server.new_layer_surface.link);
     const socket = wl.wl_display_add_socket_auto(server.wl_display);
     if (socket == null) {
         std.log.err("failed to create wl_display socket", .{});
@@ -1020,4 +1058,90 @@ fn xdg_toplevel_unmap(
         reset_cursor_mode(toplevel.server);
     }
     wl.wl_list_remove(&toplevel.link);
+}
+
+fn handle_new_layer_surface(
+    _: ?*wl.wl_listener,
+    data: ?*anyopaque,
+) callconv(.c) void {
+    const shell: *LayerShell = @ptrCast(@alignCast(data));
+    const layer: *wl.wlr_layer_surface_v1 = @ptrCast(@alignCast(data));
+    const output = shell.output;
+    if (layer.output == null) {
+        layer.output = output.output;
+    }
+    var view = std.mem.Allocator.create(
+        std.heap.c_allocator,
+        LayerView,
+    ) catch unreachable;
+    view.surface = layer;
+    const parent =
+        switch (layer.pending.layer) {
+            wl.ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND => output.background,
+            wl.ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM => output.bottom,
+            wl.ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY => output.overlay,
+            else => output.top,
+        };
+    view.scene = wl.wlr_scene_layer_surface_v1_create(
+        parent,
+        layer,
+    );
+    if (view.scene == null) {
+        std.mem.Allocator.destroy(
+            std.heap.c_allocator,
+            view,
+        );
+        wl.wlr_layer_surface_v1_destroy(layer);
+        return;
+    }
+    view.commit.notify = handle_layer_commit;
+    wl.wl_signal_add(
+        &layer.surface.*.events.commit,
+        &view.commit,
+    );
+    view.destroy.notify = handle_layer_destroy;
+}
+
+fn handle_layer_commit(
+    listener: ?*wl.wl_listener,
+    _: ?*anyopaque,
+) callconv(.c) void {
+    const view: *LayerView = @fieldParentPtr("commit", listener.?);
+    const layer = view.surface;
+    if (layer.configured and !layer.initialized)
+        return;
+    var width: c_int = 0;
+    var height: c_int = 0;
+    wl.wlr_output_effective_resolution(
+        layer.output,
+        &width,
+        &height,
+    );
+    _ = wl.wlr_layer_surface_v1_configure(
+        layer,
+        if (layer.pending.desired_width == 0)
+            @intCast(width)
+        else
+            layer.pending.desired_width,
+        if (layer.pending.desired_height == 0)
+            @intCast(height)
+        else
+            layer.pending.desired_height,
+    );
+}
+
+fn handle_layer_destroy(
+    listener: ?*wl.wl_listener,
+    _: ?*anyopaque,
+) callconv(.c) void {
+    const view: *LayerView = @fieldParentPtr(
+        "commit",
+        listener.?,
+    );
+    wl.wl_list_remove(&view.commit.link);
+    wl.wl_list_remove(&view.destroy.link);
+    std.mem.Allocator.destroy(
+        std.heap.c_allocator,
+        view,
+    );
 }
